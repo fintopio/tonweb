@@ -18,7 +18,7 @@ const ALL = {
     'v3R2': WalletV3ContractR2,
     'v4R1': WalletV4ContractR1,
     'v4R2': WalletV4ContractR2,
-    'v5': WalletV5Contract,
+    'v5R1': WalletV5Contract,
 };
 
 const LIST = [SimpleWalletContractR1, SimpleWalletContractR2, SimpleWalletContractR3, WalletV2ContractR1, WalletV2ContractR2, WalletV3ContractR1, WalletV3ContractR2, WalletV4ContractR1, WalletV4ContractR2, WalletV5Contract];
@@ -31,7 +31,7 @@ class Wallets {
         this.provider = provider;
         this.all = ALL;
         this.list = LIST;
-        this.defaultVersion = 'v5';
+        this.defaultVersion = 'v3R2';
         this.default = this.all[this.defaultVersion];
     }
 
