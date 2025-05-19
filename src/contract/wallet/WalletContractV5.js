@@ -15,57 +15,54 @@ const Opcodes = {
     auth_signed: 0x7369676e,
     auth_signed_internal: 0x73696e74
 };
+const walletV5BetaVersionsSerialisation = {
+    v5r1: 0
+};
 
 /**
- * @param {object} config - { signatureAllowed: boolean, seqno: number, walletId: bigint, publicKey: Buffer, extensions: Dictionary }
- * @return {Cell}
+ * @function getWalletIdV5R1
+ * @param   walletId {object}
+ * @param   walletId.networkGlobalId   {number}
+ * @param   walletId.workChain   {number}
+ * @param   walletId.walletVersion {number}
+ * @param   walletId.subwalletNumber {number}
+ * @return {BigInt}
  */
-function walletV5ConfigToCell(config) {
+function getWalletIdV5R1(walletId) {
     const cell = new Cell();
-    cell.bits.writeBit(config.signatureAllowed ? 1 : 0);
-    cell.bits.writeUint(config.seqno, 32);
-    cell.bits.writeUint(config.walletId, 32);
-    cell.bits.writeBytes(config.publicKey);
-
-    // For dictionary handling
-    if (config.extensions) {
-        cell.writeCell(config.extensions);
-    } else {
-        cell.bits.writeUint(0, 1); // empty dict
-    }
-
-    return cell;
+    cell.bits.writeUint(1, 1);
+    cell.bits.writeInt(walletId.workChain, 8);
+    cell.bits.writeUint(walletV5BetaVersionsSerialisation[walletId.walletVersion], 8);
+    cell.bits.writeUint(walletId.subwalletNumber, 16);
+    const slice = cell.beginParse()
+    const ctx = slice.loadInt(32);
+    const bnValue = BigInt(walletId.networkGlobalId) ^ BigInt(ctx)
+    return bnValue;
 }
 
 class WalletId {
     static versionsSerialisation = {
-        v5: 0
+        v5r1: 0
     };
 
-    static deserialize(walletId) {
-        const subwalletNumber = walletId;
-        return new WalletId({ networkGlobalId: 0, workChain: 0, walletVersion: 'v5', subwalletNumber: Number(walletId) });
-    }
-
-    walletVersion = 'v5';
-    // -239 is mainnet, -3 is testnet
-    networkGlobalId// : number;
-    workChain //: number;
-    subwalletNumber// : number;
-    serialized// : bigint;
+    walletVersion = 'v5r1';
+    networkGlobalId //  -239 is mainnet, -3 is testnet
+    workChain // 0 or -1;
+    subwalletNumber // default 0;
+    serialized // calculated bigint;
 
     constructor({
-        networkGlobalId, // : number;
-        workChain, // : number;
-        subwalletNumber, // : number;
+        networkGlobalId,
+        workChain,
+        subwalletNumber,
         walletVersion
     }) {
         this.networkGlobalId = networkGlobalId ?? -239;
         this.workChain = workChain ?? 0;
         this.subwalletNumber = subwalletNumber ?? 0;
-        this.walletVersion = walletVersion ?? 'v5';
+        this.walletVersion = walletVersion ?? 'v5r1';
 
-        this.serialized = BigInt(this.subwalletNumber)
+        this.serialized = getWalletIdV5R1(this)
     }
 }
 
@@ -76,8 +73,9 @@ class WalletV5Contract extends WalletContract {
      * @param options {any}
      */
     constructor(provider, options) {
-        options.code = Cell.oneFromBoc("B5EE9C724102140100020000A000F4A413F4BCF2C80B010201200203020148040504F8F28308D71820D31FD31FD31F02F823BBF264ED44D0D31FD31FD3FFF404D15143BAF2A15151BAF2A205F901541064F910F2A3F80024A4C8CB1F5240CB1F5230CBFF5210F400C9ED54F80F01D30721C0009F6C519320D74A96D307D402FB00E830E021C001E30021C002E30001C0039130E30D03A4C8CB1F12CB1FCBFF1011121302E6D001D0D3032171B0925F04E022D749C120925F04E002D31F218210706C7567BD22821064737472BDB0925F05E003FA403020FA4401C8CA07CBFFC9D0ED44D0810140D721F404305C810108F40A6FA131B3925F07E005D33FC8258210706C7567BA923830E30D03821064737472BA925F06E30D06070201200809007801FA00F40430F8276F2230500AA121BEF2E0508210706C7567831EB17080185004CB0526CF1658FA0219F400CB6917CB1F5260CB3F20C98040FB0006008A5004810108F45930ED44D0810140D720C801CF16F400C9ED540172B08E23821064737472831EB17080185005CB055003CF1623FA0213CB6ACB1FCB3FC98040FB00925F03E20201200A0B0059BD242B6F6A2684080A06B90FA0218470D4080847A4937D29910CE6903E9FF9837812801B7810148987159F31840201580C0D0011B8C97ED44D0D70B1F8003DB29DFB513420405035C87D010C00B23281F2FFF274006040423D029BE84C600201200E0F0019ADCE76A26840206B90EB85FFC00019AF1DF6A26840106B90EB858FC0006ED207FA00D4D422F90005C8CA0715CBFFC9D077748018C8CB05CB0222CF165005FA0214CB6B12CCCCC973FB00C84014810108F451F2A7020070810108D718FA00D33FC8542047810108F451F2A782106E6F746570748018C8CB05CB025006CF165004FA0214CB6A12CB1FCB3FC973FB0002006C810108D718FA00D33F305224810108F459F2A782106473747270748018C8CB05CB025005CF165003FA0213CB6ACB1F12CB3FC973FB00000AF400C9ED54696225E5");
-        options.walletId = new WalletId({}).serialized; // default walletId
+        options.code = Cell.oneFromBoc("b5ee9c7241021401000281000114ff00f4a413f4bcf2c80b01020120020d020148030402dcd020d749c120915b8f6320d70b1f2082106578746ebd21821073696e74bdb0925f03e082106578746eba8eb48020d72101d074d721fa4030fa44f828fa443058bd915be0ed44d0810141d721f4058307f40e6fa1319130e18040d721707fdb3ce03120d749810280b99130e070e2100f020120050c020120060902016e07080019adce76a2684020eb90eb85ffc00019af1df6a2684010eb90eb858fc00201480a0b0017b325fb51341c75c875c2c7e00011b262fb513435c280200019be5f0f6a2684080a0eb90fa02c0102f20e011e20d70b1f82107369676ebaf2e08a7f0f01e68ef0eda2edfb218308d722028308d723208020d721d31fd31fd31fed44d0d200d31f20d31fd3ffd70a000af90140ccf9109a28945f0adb31e1f2c087df02b35007b0f2d0845125baf2e0855036baf2e086f823bbf2d0882292f800de01a47fc8ca00cb1f01cf16c9ed542092f80fde70db3cd81003f6eda2edfb02f404216e926c218e4c0221d73930709421c700b38e2d01d72820761e436c20d749c008f2e09320d74ac002f2e09320d71d06c712c2005230b0f2d089d74cd7393001a4e86c128407bbf2e093d74ac000f2e093ed55e2d20001c000915be0ebd72c08142091709601d72c081c12e25210b1e30f20d74a111213009601fa4001fa44f828fa443058baf2e091ed44d0810141d718f405049d7fc8ca0040048307f453f2e08b8e14038307f45bf2e08c22d70a00216e01b3b0f2d090e2c85003cf1612f400c9ed54007230d72c08248e2d21f2e092d200ed44d0d2005113baf2d08f54503091319c01810140d721d70a00f2e08ee2c8ca0058cf16c9ed5493f2c08de20010935bdb31e1d74cd0b4d6c35e");
+        const walletIdBn = new WalletId({}).serialized;
+        options.walletId = walletIdBn
         super(provider, options);
 
         this.methods.getPublicKey = this.getPublicKey.bind(this);
@@ -85,7 +83,7 @@ class WalletV5Contract extends WalletContract {
     }
 
     getName() {
-        return 'v5';
+        return 'v5R1';
     }
 
     /**
@@ -124,7 +122,7 @@ class WalletV5Contract extends WalletContract {
         const cell = new Cell();
         cell.bits.writeBit(1); // signatureAllowed: true by default
         cell.bits.writeUint(0, 32); // seqno
-        cell.bits.writeUint(this.options.walletId, 32);
+        cell.bits.writeUint(this.options.walletId.toString(), 32);
         cell.bits.writeBytes(this.options.publicKey);
         cell.bits.writeUint(0, 1); // plugins/extensions dict empty
         return cell;
@@ -205,15 +203,7 @@ class WalletV5Contract extends WalletContract {
         // Parse dict if needed, here just return as is for compatibility
         return result;
     }
-
-    /**
-     * Returns the canonical v5 wallet code cell
-     * @returns {Cell}
-     */
-    static get codeCell() {
-        // This is the canonical v5 wallet contract code cell (from official TON wallet-contract-v5)
-        return Cell.oneFromBoc("B5EE9C724102140100020000A000F4A413F4BCF2C80B010201200203020148040504F8F28308D71820D31FD31FD31F02F823BBF264ED44D0D31FD31FD3FFF404D15143BAF2A15151BAF2A205F901541064F910F2A3F80024A4C8CB1F5240CB1F5230CBFF5210F400C9ED54F80F01D30721C0009F6C519320D74A96D307D402FB00E830E021C001E30021C002E30001C0039130E30D03A4C8CB1F12CB1FCBFF1011121302E6D001D0D3032171B0925F04E022D749C120925F04E002D31F218210706C7567BD22821064737472BDB0925F05E003FA403020FA4401C8CA07CBFFC9D0ED44D0810140D721F404305C810108F40A6FA131B3925F07E005D33FC8258210706C7567BA923830E30D03821064737472BA925F06E30D06070201200809007801FA00F40430F8276F2230500AA121BEF2E0508210706C7567831EB17080185004CB0526CF1658FA0219F400CB6917CB1F5260CB3F20C98040FB0006008A5004810108F45930ED44D0810140D720C801CF16F400C9ED540172B08E23821064737472831EB17080185005CB055003CF1623FA0213CB6ACB1FCB3FC98040FB00925F03E20201200A0B0059BD242B6F6A2684080A06B90FA0218470D4080847A4937D29910CE6903E9FF9837812801B7810148987159F31840201580C0D0011B8C97ED44D0D70B1F8003DB29DFB513420405035C87D010C00B23281F2FFF274006040423D029BE84C600201200E0F0019ADCE76A26840206B90EB85FFC00019AF1DF6A26840106B90EB858FC0006ED207FA00D4D422F90005C8CA0715CBFFC9D077748018C8CB05CB0222CF165005FA0214CB6B12CCCCC973FB00C84014810108F451F2A7020070810108D718FA00D33FC8542047810108F451F2A782106E6F746570748018C8CB05CB025006CF165004FA0214CB6A12CB1FCB3FC973FB0002006C810108D718FA00D33F305224810108F459F2A782106473747270748018C8CB05CB025005CF165003FA0213CB6ACB1F12CB3FC973FB00000AF400C9ED54696225E5");
-    }
+    /* TODO: add createAddExtension, createRemoveExtension */
 }
 
 WalletV5Contract.parseTransferQuery = parseWalletV3TransferQuery;
