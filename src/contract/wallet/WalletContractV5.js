@@ -16,7 +16,7 @@ const Opcodes = {
     auth_signed_internal: 0x73696e74
 };
 const walletV5BetaVersionsSerialisation = {
-    v5r1: 0
+    v5R1: 0
 };
 
 /**
@@ -42,10 +42,10 @@ function getWalletIdV5R1(walletId) {
 
 class WalletId {
     static versionsSerialisation = {
-        v5r1: 0
+        v5R1: 0
     };
 
-    walletVersion = 'v5r1';
+    walletVersion = 'v5R1';
     networkGlobalId //  -239 is mainnet, -3 is testnet
     workChain // 0 or -1;
     subwalletNumber // default 0;
@@ -60,7 +60,7 @@ class WalletId {
         this.networkGlobalId = networkGlobalId ?? -239;
         this.workChain = workChain ?? 0;
         this.subwalletNumber = subwalletNumber ?? 0;
-        this.walletVersion = walletVersion ?? 'v5r1';
+        this.walletVersion = walletVersion ?? 'v5R1';
 
         this.serialized = getWalletIdV5R1(this)
     }
