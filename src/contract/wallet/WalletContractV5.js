@@ -222,6 +222,7 @@ class WalletV5Contract extends WalletContract {
 
         const actionsCell = this.createOutBasicAction(sendMode, msgCell);
         signingMessage.refs.push(actionsCell);
+        signingMessage.bits.writeBit(0); // no more actions
 
         return this.createExternalMessage(signingMessage, secretKey, seqno, dummySignature);
     }
