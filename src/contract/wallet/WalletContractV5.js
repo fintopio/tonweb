@@ -217,28 +217,78 @@ class WalletV5Contract extends WalletContract {
         if (sendMode === null || sendMode === undefined) {
             sendMode = 3;
         }
-        signingMessage.bits.writeBit(1)
-        const msgCell = Contract.createOutMsg(address, amount, payload, stateInit);
+        signingMessage.bits.writeBit(1) // has basic actions
 
+        const msgCell = Contract.createOutMsg(address, amount, payload, stateInit);
         const actionsCell = this.createOutBasicAction(sendMode, msgCell);
         signingMessage.refs.push(actionsCell);
-        signingMessage.bits.writeBit(0); // no more actions
 
+        signingMessage.bits.writeBit(0); // no extended actions
+
+        return this.createExternalMessage(signingMessage, secretKey, seqno, dummySignature);
+    }
+
+    /**
+ * @param secretKey {Uint8Array}  nacl.KeyPair.secretKey
+ * @param seqno {number}
+ * @param messages {[{toAddress: Address | string, amount: BN, payload?: string | Uint8Array | Cell, sendMode?: number, stateInit?: Cell }]} up to 4 messages
+ * @param dummySignature?    {boolean}
+ * @param expireAt? {number}
+ * @return {Promise<{address: Address, signature: Uint8Array, message: Cell, cell: Cell, body: Cell, resultMessage: Cell}>}
+ */
+    async createTransferMessages(
+        secretKey,
+        seqno,
+        messages,
+        dummySignature = false,
+        expireAt = undefined,
+    ) {
+        if (seqno === null || seqno === undefined || seqno < 0) {
+            throw new Error('seqno must be number >= 0')
+        }
+        const signingMessage = this.createSigningMessage(seqno, expireAt);
+        if (messages.length < 1 || messages.length > 4) {
+            throw new Error('put 1-4 messages');
+        }
+        signingMessage.bits.writeBit(1); // has basic actions
+
+        const actionsCell = this.createOutBasicActions(messages);
+        signingMessage.refs.push(actionsCell);
+
+        signingMessage.bits.writeBit(0); // no extended actions
         return this.createExternalMessage(signingMessage, secretKey, seqno, dummySignature);
     }
 
     /**
      * @param sendMode {number}
      * @param msgCell {Cell}
+     * @param innerCell? {Cell}
      * @return {Cell}
      */
-    createOutBasicAction(sendMode, msgCell) {
+    createOutBasicAction(sendMode, msgCell, innerCell) {
         const cell = new Cell();
         cell.bits.writeUint(Opcodes.action_send_msg, 32);
         cell.bits.writeUint8(sendMode);
-        const emptyCell = new Cell();
-        cell.refs.push(emptyCell);
+        const _innerCell = innerCell || new Cell()
+        cell.refs.push(_innerCell);
         cell.refs.push(msgCell);
+        return cell;
+    }
+
+    /**
+     * @param messages {[{toAddress: Address | string, amount: BN, payload?: string | Uint8Array | Cell, sendMode?: number, stateInit?: Cell }]} up to 4 messages
+     * @return {Cell}
+     */
+    createOutBasicActions(messages) {
+        const cell = messages.reverse().reduce((acc, msg) => {
+            let msgSendMode = msg.sendMode;
+            if (msgSendMode === null || msgSendMode === undefined) {
+                msgSendMode = 3;
+            }
+            const msgCell = Contract.createOutMsg(msg.toAddress, msg.amount, msg.payload, msg.stateInit);
+            const actionMsgCell = this.createOutBasicAction(msgSendMode, msgCell, acc);
+            return actionMsgCell;
+        }, new Cell())
         return cell;
     }
 
